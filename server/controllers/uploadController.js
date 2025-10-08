@@ -6,7 +6,7 @@ import Booking from "../models/Booking.js";
 
 /**
  * @desc Upload and parse Excel sheet containing booking_id and seats
- * @route POST /api/upload-bookings
+ * @route POST /api/upload-books
  * @access Public
  */
 export const uploadBookings = async (req, res) => {
@@ -23,15 +23,25 @@ export const uploadBookings = async (req, res) => {
     const sheet = workbook.Sheets[sheetName];
     const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-    // Validate columns
+    // Check if sheet is empty
     if (!jsonData.length) {
       fs.unlinkSync(filePath);
       return res.status(400).json({ message: "Excel sheet is empty." });
     }
 
+    // Convert column names to lowercase for consistency
+    const normalizedJson = jsonData.map((row) => {
+      const newRow = {};
+      Object.keys(row).forEach((key) => {
+        newRow[key.toLowerCase()] = row[key];
+      });
+      return newRow;
+    });
+
+    // Validate required columns
     const requiredFields = ["booking_id", "seats"];
     const missingFields = requiredFields.filter(
-      (f) => !Object.keys(jsonData[0]).includes(f)
+      (f) => !Object.keys(normalizedJson[0]).includes(f)
     );
 
     if (missingFields.length > 0) {
@@ -42,11 +52,15 @@ export const uploadBookings = async (req, res) => {
     }
 
     // Process data
-    const bookings = jsonData.map((row, index) => {
+    const bookings = normalizedJson.map((row, index) => {
       const booking_id = row.booking_id;
-      const seats = typeof row.seats === "string"
-        ? row.seats.split(",").map((s) => s.trim()).filter(Boolean)
-        : [];
+      const seats =
+        typeof row.seats === "string"
+          ? row.seats
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
 
       if (!booking_id || seats.length === 0) {
         throw new Error(`Invalid data at row ${index + 2}`);
