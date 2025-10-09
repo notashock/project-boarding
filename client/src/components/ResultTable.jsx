@@ -21,13 +21,22 @@ export default function ResultTable({ sequence }) {
           </tr>
         </thead>
         <tbody>
-          {data.map((item) => (
-            <tr key={item.booking_id} className="border-b hover:bg-gray-100">
-              <td className="py-3 px-6">{item.seq}</td>
-              <td className="py-3 px-6">{item.booking_id}</td>
-              <td className="py-3 px-6">{item.seats.join(", ")}</td>
-            </tr>
-          ))}
+          {data.map((item, idx) => {
+            // Ensure seats is always an array for display
+            const seatsArray = Array.isArray(item.seats)
+              ? item.seats
+              : item.seat
+              ? [item.seat]
+              : [];
+
+            return (
+              <tr key={item.booking_id + "-" + idx} className="border-b hover:bg-gray-100">
+                <td className="py-3 px-6">{item.seq}</td>
+                <td className="py-3 px-6">{item.booking_id}</td>
+                <td className="py-3 px-6">{seatsArray.join(", ")}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
