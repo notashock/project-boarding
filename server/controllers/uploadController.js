@@ -4,11 +4,7 @@ import fs from "fs";
 import path from "path";
 import Booking from "../models/Booking.js";
 
-/**
- * @desc Upload and parse Excel sheet containing booking_id and seats
- * @route POST /api/upload-books
- * @access Public
- */
+
 export const uploadBookings = async (req, res) => {
   try {
     if (!req.file) {
