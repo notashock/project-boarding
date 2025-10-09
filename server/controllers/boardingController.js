@@ -1,55 +1,61 @@
 import Booking from "../models/Booking.js";
 
+// Extract row number from seat string (e.g., A12 → 12)
 const extractSeatNumber = (seat) => {
   const num = seat.match(/\d+/);
   return num ? parseInt(num[0], 10) : 0;
 };
 
 // GET /api/boarding-sequence
-// Optional query: ?strategy=max or ?strategy=min
 export const getBoardingSequence = async (req, res) => {
   try {
-    const { strategy = "max" } = req.query; // defaults to min if not provided
-
     const bookings = await Booking.find();
 
     if (!bookings || bookings.length === 0) {
       return res.status(404).json({ message: "No bookings found" });
     }
 
-    // calculate row number (minRow or maxRow depending on strategy)
-    const processed = bookings.map((b) => {
-      const seatNumbers = b.seats.map(extractSeatNumber);
-      const refRow =
-        strategy === "max"
-          ? Math.max(...seatNumbers)
-          : Math.min(...seatNumbers);
-      return { ...b._doc, refRow };
-    });
+    // Flatten all seats with their metadata
+    let allSeats = bookings.flatMap((b) =>
+      b.seats.map((seat) => ({
+        booking_id: b.booking_id,
+        seat,
+        col: seat[0].toUpperCase(),
+        row: extractSeatNumber(seat),
+      }))
+    );
 
-    // sort logic
-    processed.sort((a, b) => {
-      if (a.refRow === b.refRow) {
-        return a.booking_id - b.booking_id; // tie-breaker
-      }
+    // ✅ Window seats have first priority (A, D)
+    // ✅ Middle/Aisle seats come after (B, C)
+    const windowCols = ["A", "D"];
+    const middleCols = ["B", "C"];
 
-      return strategy === "max"
-        ? b.refRow - a.refRow // back to front
-        : a.refRow - b.refRow; // front to back
-    });
+    // Separate and sort each group
+    const windowSeats = allSeats
+      .filter((s) => windowCols.includes(s.col))
+      .sort((a, b) => b.row - a.row); // Back to front
 
-    const sequence = processed.map((b, i) => ({
+    const middleSeats = allSeats
+      .filter((s) => middleCols.includes(s.col))
+      .sort((a, b) => b.row - a.row); // Back to front
+
+    // Combine final sequence
+    const finalSeats = [...windowSeats, ...middleSeats];
+
+    // Assign sequence numbers
+    const sequence = finalSeats.map((s, i) => ({
       seq: i + 1,
-      booking_id: b.booking_id,
-      seats: b.seats,
+      booking_id: s.booking_id,
+      seat: s.seat,
     }));
 
     res.json({
-      strategy,
-      totalBookings: sequence.length,
+      strategy: "window-first-max-boarding",
+      totalSeats: sequence.length,
       sequence,
     });
   } catch (error) {
+    console.error("❌ Boarding sequence error:", error.message);
     res.status(500).json({ message: error.message });
   }
 };
